@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Countdown" />
+  <meta name="description" content="Turn the calendar into your debt payoff plan. Free tracker." />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon.png" />
+  <title>Countdown to Freedom</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0a0f; }
+    select option { background: #1a1a2e; color: #e8e0d0; }
+    #install-banner { display:none; position:fixed; bottom:0; left:0; right:0; background:#1a0a2e; border-top:1px solid #4a3a7a; padding:0.9rem 1.2rem; z-index:999; align-items:center; justify-content:space-between; gap:1rem; }
+    #install-banner.show { display:flex; }
+    #install-banner p { font-family:Georgia,serif; font-size:0.8rem; color:#c4b5fd; flex:1; }
+    #install-banner button { font-family:Georgia,serif; font-size:0.78rem; padding:0.4rem 1rem; border-radius:20px; cursor:pointer; border:none; }
+    #install-btn { background:#7c3aed; color:#fff; }
+    #dismiss-btn { background:transparent; color:#5a5080; border:1px solid #2a2a4a !important; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <div id="install-banner">
+    <p>📲 Add Countdown to Freedom to your home screen to track offline</p>
+    <button id="dismiss-btn" onclick="dismissBanner()">Not now</button>
+    <button id="install-btn" onclick="installApp()">Install</button>
+  </div>
+
+  <script>
+    // PWA install prompt
+    let deferredPrompt;
+    const banner = document.getElementById('install-banner');
+    window.addEventListener('beforeinstallprompt', e => {
+      e.preventDefault();
+      deferredPrompt = e;
+      if (!localStorage.getItem('ctf-install-dismissed')) banner.classList.add('show');
+    });
+    function installApp() {
+      banner.classList.remove('show');
+      if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt = null; }
+    }
+    function dismissBanner() {
+      banner.classList.remove('show');
+      localStorage.setItem('ctf-install-dismissed', '1');
+    }
+
+    // Service worker registration
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      });
+    }
+  </script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+    function getDaysInMonth(month, year) { return new Date(year, month + 1, 0).getDate(); }
+    function getSchedule(month, year, scale=1) {
+      const days = getDaysInMonth(month, year);
+      return Array.from({ length: days }, (_, i) => ({ day: i+1, amount: parseFloat(((days-i)*scale).toFixed(2)) }));
+    }
+    function formatGBP(n) { return `£${n.toFixed(2)}`; }
+    function storageKey(month, year) { return `ctf-paid-${year}-${month}`; }
+
+    function App() {
+      const now = new Date();
+      const [month, setMonth] = useState(now.getMonth());
+      const [year, setYear] = useState(now.getFullYear());
+      const [scale, setScale] = useState(() => parseFloat(localStorage.getItem('ctf-scale')||'1'));
+      const [paid, setPaid] = useState({});
+      const [debtName, setDebtName] = useState(() => localStorage.getItem('ctf-debt-name')||'Credit Card');
+      const [debtBalance, setDebtBalance] = useState(() => parseFloat(localStorage.getItem('ctf-debt-balance')||'1200'));
+      const [editing, setEditing] = useState(false);
+      const [saved, setSaved] = useState(false);
+
+      // Load paid days when month/year changes
+      useEffect(() => {
+        try {
+          const stored = localStorage.getItem(storageKey(month, year));
+          setPaid(stored ? JSON.parse(stored) : {});
+        } catch(e) { setPaid({}); }
+      }, [month, year]);
+
+      // Save paid days whenever they change
+      useEffect(() => {
+        try {
+          localStorage.setItem(storageKey(month, year), JSON.stringify(paid));
+        } catch(e) {}
+      }, [paid, month, year]);
+
+      // Save scale
+      useEffect(() => { localStorage.setItem('ctf-scale', scale); }, [scale]);
+
+      // Save debt info
+      useEffect(() => { localStorage.setItem('ctf-debt-name', debtName); }, [debtName]);
+      useEffect(() => { localStorage.setItem('ctf-debt-balance', debtBalance); }, [debtBalance]);
+
+      const schedule = getSchedule(month, year, scale);
+      const total = schedule.reduce((s,d) => s+d.amount, 0);
+      const paidTotal = schedule.filter(d => paid[d.day]).reduce((s,d) => s+d.amount, 0);
+      const remaining = total - paidTotal;
+      const progress = total > 0 ? (paidTotal/total)*100 : 0;
+      const today = now.getDate();
+      const isCurrentMonth = month === now.getMonth() && year === now.getFullYear();
+
+      function toggleDay(day) {
+        setPaid(p => ({ ...p, [day]: !p[day] }));
+        setSaved(true);
+        setTimeout(() => setSaved(false), 1500);
+      }
+
+      function markUpToToday() {
+        const newPaid = {};
+        schedule.forEach(d => { if (d.day <= today) newPaid[d.day] = true; });
+        setPaid(newPaid);
+      }
+
+      const scaleOptions = [
+        { label:"Full (×1)", value:1 },
+        { label:"Half (×½)", value:0.5 },
+        { label:"Quarter (×¼)", value:0.25 },
+        { label:"Double (×2)", value:2 },
+      ];
+      const years = [now.getFullYear()-1, now.getFullYear(), now.getFullYear()+1];
+
+      return (
+        <div style={{ minHeight:"100vh", background:"#0a0a0f", fontFamily:"Georgia,'Times New Roman',serif", color:"#e8e0d0", paddingBottom:"80px" }}>
+
+          {/* Saved indicator */}
+          <div style={{ position:"fixed", top:12, right:12, zIndex:100, background:"#1a3a2a", border:"1px solid #2a6a4a", borderRadius:20, padding:"0.3rem 0.8rem", fontSize:"0.7rem", color:"#6bdd9a", transition:"opacity 0.3s", opacity:saved?1:0, pointerEvents:"none" }}>
+            ✓ Saved
+          </div>
+
+          {/* Header */}
+          <div style={{ background:"linear-gradient(135deg,#1a0a2e 0%,#0d1a3a 50%,#0a1a0a 100%)", borderBottom:"1px solid #2a2a4a", padding:"2rem 2rem 1.5rem", position:"relative", overflow:"hidden" }}>
+            <div style={{ position:"absolute", top:0, left:0, right:0, bottom:0, background:"radial-gradient(ellipse at 20% 50%,rgba(100,60,200,0.15) 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,rgba(60,120,200,0.1) 0%,transparent 50%)", pointerEvents:"none" }} />
+            <div style={{ position:"relative", maxWidth:680, margin:"0 auto" }}>
+              <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:"1rem" }}>
+                <div>
+                  <div style={{ fontSize:"0.7rem", letterSpacing:"0.25em", color:"#7a70b0", textTransform:"uppercase", marginBottom:"0.3rem" }}>Countdown to Freedom</div>
+                  <h1 style={{ margin:0, fontSize:"clamp(1.6rem,4vw,2.2rem)", fontWeight:"normal", color:"#f0e8ff", lineHeight:1.1 }}>Debt Tracker</h1>
+                </div>
+                <div style={{ textAlign:"right" }}>
+                  {editing ? (
+                    <div style={{ display:"flex", flexDirection:"column", gap:"0.4rem", alignItems:"flex-end" }}>
+                      <input value={debtName} onChange={e => setDebtName(e.target.value)} style={{ background:"#1a1a2e", border:"1px solid #4a4a8a", color:"#e8e0d0", padding:"0.3rem 0.5rem", fontSize:"0.9rem", borderRadius:4, width:160, fontFamily:"inherit" }} />
+                      <div style={{ display:"flex", gap:"0.3rem", alignItems:"center" }}>
+                        <span style={{ color:"#7a70b0", fontSize:"0.8rem" }}>£</span>
+                        <input type="number" value={debtBalance} onChange={e => setDebtBalance(parseFloat(e.target.value)||0)} style={{ background:"#1a1a2e", border:"1px solid #4a4a8a", color:"#e8e0d0", padding:"0.3rem 0.5rem", fontSize:"0.9rem", borderRadius:4, width:110, fontFamily:"inherit" }} />
+                      </div>
+                      <button onClick={() => setEditing(false)} style={{ background:"#4a3a7a", border:"none", color:"#e8e0d0", padding:"0.3rem 0.8rem", borderRadius:4, cursor:"pointer", fontSize:"0.8rem", fontFamily:"inherit" }}>Save</button>
+                    </div>
+                  ) : (
+                    <div onClick={() => setEditing(true)} style={{ cursor:"pointer" }}>
+                      <div style={{ fontSize:"0.75rem", color:"#7a70b0", marginBottom:"0.2rem" }}>{debtName} balance</div>
+                      <div style={{ fontSize:"1.5rem", color:"#ff6b6b", fontWeight:"normal" }}>{formatGBP(debtBalance)}</div>
+                      <div style={{ fontSize:"0.65rem", color:"#4a4a6a", marginTop:"0.2rem" }}>tap to edit</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ maxWidth:680, margin:"0 auto", padding:"1.5rem 1.5rem 2rem" }}>
+
+            {/* Controls */}
+            <div style={{ background:"#0f0f1a", border:"1px solid #1e1e3a", borderRadius:10, padding:"1rem 1.2rem", marginBottom:"1.5rem", display:"flex", flexWrap:"wrap", gap:"1rem", alignItems:"center", justifyContent:"space-between" }}>
+              <div style={{ display:"flex", gap:"0.5rem", alignItems:"center" }}>
+                <select value={month} onChange={e => setMonth(Number(e.target.value))} style={{ background:"#1a1a2e", border:"1px solid #2a2a4a", color:"#e8e0d0", padding:"0.4rem 0.6rem", borderRadius:6, fontFamily:"inherit", fontSize:"0.9rem" }}>
+                  {MONTHS.map((m,i) => <option key={m} value={i}>{m}</option>)}
+                </select>
+                <select value={year} onChange={e => setYear(Number(e.target.value))} style={{ background:"#1a1a2e", border:"1px solid #2a2a4a", color:"#e8e0d0", padding:"0.4rem 0.6rem", borderRadius:6, fontFamily:"inherit", fontSize:"0.9rem" }}>
+                  {years.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+              <div style={{ display:"flex", gap:"0.4rem", flexWrap:"wrap" }}>
+                {scaleOptions.map(o => (
+                  <button key={o.value} onClick={() => setScale(o.value)} style={{ background:scale===o.value?"#4a3a7a":"#1a1a2e", border:`1px solid ${scale===o.value?"#7a6ab0":"#2a2a4a"}`, color:scale===o.value?"#e8e0d0":"#7a70b0", padding:"0.3rem 0.7rem", borderRadius:20, cursor:"pointer", fontSize:"0.75rem", fontFamily:"inherit" }}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Summary cards */}
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"0.8rem", marginBottom:"1.5rem" }}>
+              {[{label:"Month Total",value:formatGBP(total),color:"#a090e0"},{label:"Paid So Far",value:formatGBP(paidTotal),color:"#6bdd9a"},{label:"Left This Month",value:formatGBP(remaining),color:"#ff9966"}].map(card => (
+                <div key={card.label} style={{ background:"#0f0f1a", border:"1px solid #1e1e3a", borderRadius:10, padding:"0.9rem 1rem", textAlign:"center" }}>
+                  <div style={{ fontSize:"0.65rem", letterSpacing:"0.1em", color:"#4a4a6a", textTransform:"uppercase", marginBottom:"0.4rem" }}>{card.label}</div>
+                  <div style={{ fontSize:"1.2rem", color:card.color }}>{card.value}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Progress bar */}
+            <div style={{ marginBottom:"1.5rem" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"0.4rem" }}>
+                <span style={{ fontSize:"0.7rem", color:"#4a4a6a", textTransform:"uppercase", letterSpacing:"0.1em" }}>Monthly Progress</span>
+                <span style={{ fontSize:"0.8rem", color:"#6bdd9a" }}>{progress.toFixed(0)}%</span>
+              </div>
+              <div style={{ height:8, background:"#1a1a2e", borderRadius:4, overflow:"hidden" }}>
+                <div style={{ height:"100%", width:`${progress}%`, background:"linear-gradient(90deg,#4a3a7a,#6bdd9a)", borderRadius:4, transition:"width 0.4s ease" }} />
+              </div>
+              {isCurrentMonth && (
+                <div style={{ marginTop:"0.6rem", display:"flex", justifyContent:"flex-end" }}>
+                  <button onClick={markUpToToday} style={{ background:"transparent", border:"1px solid #2a2a4a", color:"#7a70b0", padding:"0.3rem 0.8rem", borderRadius:20, cursor:"pointer", fontSize:"0.72rem", fontFamily:"inherit" }}>✓ Mark all days up to today</button>
+                </div>
+              )}
+            </div>
+
+            {/* Calendar */}
+            <div style={{ background:"#0f0f1a", border:"1px solid #1e1e3a", borderRadius:12, padding:"1.2rem" }}>
+              <div style={{ fontSize:"0.7rem", letterSpacing:"0.15em", color:"#4a4a6a", textTransform:"uppercase", marginBottom:"1rem" }}>{MONTHS[month]} {year} — Daily Schedule</div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(76px,1fr))", gap:"0.5rem" }}>
+                {schedule.map(({ day, amount }) => {
+                  const isPaid = !!paid[day];
+                  const isToday = isCurrentMonth && day === today;
+                  const isPast = isCurrentMonth && day < today;
+                  return (
+                    <button key={day} onClick={() => toggleDay(day)} style={{ background:isPaid?"linear-gradient(135deg,#1a3a2a,#0d2a1a)":isToday?"linear-gradient(135deg,#2a1a4a,#1a0a3a)":"#12121e", border:isPaid?"1px solid #2a6a4a":isToday?"1px solid #6a4aaa":isPast?"1px solid #2a1a2a":"1px solid #1e1e3a", borderRadius:8, padding:"0.6rem 0.4rem", cursor:"pointer", textAlign:"center", transition:"all 0.15s", position:"relative", opacity:isPast&&!isPaid?0.6:1 }}>
+                      <div style={{ fontSize:"0.65rem", color:isPaid?"#4a8a6a":isToday?"#9a7ad0":"#3a3a5a", marginBottom:"0.2rem" }}>{isToday?"TODAY":`Day ${day}`}</div>
+                      <div style={{ fontSize:"0.95rem", color:isPaid?"#6bdd9a":isToday?"#c4a8ff":"#9090b0", fontWeight:isPaid||isToday?"bold":"normal" }}>{formatGBP(amount)}</div>
+                      {isPaid && <div style={{ position:"absolute", top:4, right:6, fontSize:"0.65rem", color:"#6bdd9a" }}>✓</div>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Projection */}
+            <div style={{ background:"#0f0f1a", border:"1px solid #1e1e3a", borderRadius:10, padding:"1rem 1.2rem", marginTop:"1rem" }}>
+              <div style={{ fontSize:"0.7rem", letterSpacing:"0.15em", color:"#4a4a6a", textTransform:"uppercase", marginBottom:"1rem" }}>Debt Paydown Projection — Up to 5 Years</div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:"0.5rem", marginBottom:"1.2rem" }}>
+                {[{label:"After 1 month",months:1},{label:"After 3 months",months:3},{label:"After 6 months",months:6},{label:"After 1 year",months:12}].map(p => {
+                  const val = Math.max(0, debtBalance - total * p.months);
+                  const cleared = val <= 0;
+                  return (
+                    <div key={p.label} style={{ background:cleared?"linear-gradient(135deg,#0d2a1a,#0a1a10)":"#12121e", border:`1px solid ${cleared?"#2a6a4a":"#1e1e3a"}`, borderRadius:8, padding:"0.7rem 0.8rem" }}>
+                      <div style={{ fontSize:"0.62rem", color:cleared?"#4a8a6a":"#4a4a6a", marginBottom:"0.25rem" }}>{p.label}</div>
+                      <div style={{ fontSize:"1rem", color:cleared?"#6bdd9a":"#ff9966" }}>{cleared?"✓ CLEARED!":formatGBP(val)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ fontSize:"0.65rem", color:"#3a3a5a", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:"0.7rem" }}>Year-by-year breakdown</div>
+              <div style={{ display:"flex", flexDirection:"column", gap:"0.55rem" }}>
+                {[1,2,3,4,5].map(yr => {
+                  const monthsIn = yr*12;
+                  const rem = Math.max(0, debtBalance - total*monthsIn);
+                  const cleared = rem <= 0;
+                  let clearMonth = null;
+                  if (cleared) { for (let m=(yr-1)*12+1;m<=yr*12;m++) { if (debtBalance-total*m<=0){clearMonth=m;break;} } }
+                  const pct = Math.min(100,(total*monthsIn/debtBalance)*100);
+                  const prevPct = Math.min(100,(total*(monthsIn-12)/debtBalance)*100);
+                  return (
+                    <div key={yr}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:"0.25rem" }}>
+                        <span style={{ fontSize:"0.72rem", color:cleared?"#6bdd9a":"#9090b0" }}>Year {yr}{cleared&&clearMonth?` — clears month ${clearMonth}`:""}</span>
+                        <span style={{ fontSize:"0.8rem", color:cleared?"#6bdd9a":"#ff9966" }}>{cleared?"✓ CLEARED":formatGBP(rem)}</span>
+                      </div>
+                      <div style={{ height:6, background:"#1a1a2e", borderRadius:3, overflow:"hidden", position:"relative" }}>
+                        <div style={{ position:"absolute", left:0, top:0, height:"100%", width:`${prevPct}%`, background:"#2a2a4a" }} />
+                        <div style={{ position:"absolute", left:`${prevPct}%`, top:0, height:"100%", width:`${Math.min(pct-prevPct,100-prevPct)}%`, background:cleared?"linear-gradient(90deg,#3a8a5a,#6bdd9a)":`linear-gradient(90deg,hsl(${200+yr*20},60%,50%),hsl(${220+yr*20},70%,65%))`, borderRadius:"0 3px 3px 0" }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {(() => {
+                if (total<=0) return null;
+                const mtc = Math.ceil(debtBalance/total);
+                const yrs = Math.floor(mtc/12);
+                const mos = mtc%12;
+                const label = yrs>0?`${yrs} yr${yrs>1?"s":""}${mos>0?` ${mos} mo`:""}`:`${mos} month${mos>1?"s":""}`;
+                return (
+                  <div style={{ marginTop:"1rem", background:mtc<=60?"linear-gradient(135deg,#1a0a2e,#0a1a3a)":"#12121e", border:`1px solid ${mtc<=60?"#4a3a7a":"#1e1e3a"}`, borderRadius:8, padding:"0.7rem 1rem", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <span style={{ fontSize:"0.7rem", color:"#7a70b0" }}>Time to clear at this rate</span>
+                    <span style={{ fontSize:"1.1rem", color:mtc<=60?"#c4a8ff":"#ff6b6b" }}>{label}</span>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <p style={{ textAlign:"center", fontSize:"0.65rem", color:"#2a2a4a", marginTop:"2rem" }}>Tap any day to mark as paid · Progress saves automatically · Countdown to Freedom</p>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
