@@ -1,0 +1,13 @@
+{
+  "name": "Countdown to Freedom",
+  "short_name": "Countdown",
+  "description": "Turn the calendar into your debt payoff plan",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0f",
+  "theme_color": "#0a0a0f",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "icon.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
