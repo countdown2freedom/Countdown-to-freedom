@@ -242,58 +242,79 @@
             </div>
 
             {/* Projection */}
-            <div style={{ background:"#0f0f1a", border:"1px solid #1e1e3a", borderRadius:10, padding:"1rem 1.2rem", marginTop:"1rem" }}>
-              <div style={{ fontSize:"0.7rem", letterSpacing:"0.15em", color:"#4a4a6a", textTransform:"uppercase", marginBottom:"1rem" }}>Debt Paydown Projection — Up to 5 Years</div>
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:"0.5rem", marginBottom:"1.2rem" }}>
-                {[{label:"After 1 month",months:1},{label:"After 3 months",months:3},{label:"After 6 months",months:6},{label:"After 1 year",months:12}].map(p => {
-                  const val = Math.max(0, debtBalance - total * p.months);
-                  const cleared = val <= 0;
-                  return (
-                    <div key={p.label} style={{ background:cleared?"linear-gradient(135deg,#0d2a1a,#0a1a10)":"#12121e", border:`1px solid ${cleared?"#2a6a4a":"#1e1e3a"}`, borderRadius:8, padding:"0.7rem 0.8rem" }}>
-                      <div style={{ fontSize:"0.62rem", color:cleared?"#4a8a6a":"#4a4a6a", marginBottom:"0.25rem" }}>{p.label}</div>
-                      <div style={{ fontSize:"1rem", color:cleared?"#6bdd9a":"#ff9966" }}>{cleared?"✓ CLEARED!":formatGBP(val)}</div>
+            {(() => {
+              if (total <= 0) return null;
+              const mtc = Math.ceil(debtBalance / total);
+              const yrs = Math.floor(mtc / 12);
+              const mos = mtc % 12;
+              const timeLabel = yrs > 0 ? `${yrs} yr${yrs>1?"s":""}${mos>0?` ${mos} mo`:""}` : `${mos} month${mos>1?"s":""}`;
+              const yearsNeeded = Math.min(5, Math.ceil(mtc / 12));
+              const milestones = [{label:"After 1 month",months:1},{label:"After 3 months",months:3},{label:"After 6 months",months:6},{label:"After 1 year",months:12}].filter(p => p.months <= mtc + 1);
+
+              return (
+                <div style={{ background:"#0f0f1a", border:"1px solid #1e1e3a", borderRadius:10, padding:"1rem 1.2rem", marginTop:"1rem" }}>
+                  <div style={{ fontSize:"0.7rem", letterSpacing:"0.15em", color:"#4a4a6a", textTransform:"uppercase", marginBottom:"1rem" }}>Debt Paydown Projection</div>
+
+                  {/* Milestone cards — only show relevant ones */}
+                  {milestones.length > 0 && (
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:"0.5rem", marginBottom:"1.2rem" }}>
+                      {milestones.map(p => {
+                        const val = Math.max(0, debtBalance - total * p.months);
+                        const cleared = val <= 0;
+                        return (
+                          <div key={p.label} style={{ background:cleared?"linear-gradient(135deg,#0d2a1a,#0a1a10)":"#12121e", border:`1px solid ${cleared?"#2a6a4a":"#1e1e3a"}`, borderRadius:8, padding:"0.7rem 0.8rem" }}>
+                            <div style={{ fontSize:"0.62rem", color:cleared?"#4a8a6a":"#4a4a6a", marginBottom:"0.25rem" }}>{p.label}</div>
+                            <div style={{ fontSize:"1rem", color:cleared?"#6bdd9a":"#ff9966" }}>{cleared?"✓ CLEARED!":formatGBP(val)}</div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
-              </div>
-              <div style={{ fontSize:"0.65rem", color:"#3a3a5a", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:"0.7rem" }}>Year-by-year breakdown</div>
-              <div style={{ display:"flex", flexDirection:"column", gap:"0.55rem" }}>
-                {[1,2,3,4,5].map(yr => {
-                  const monthsIn = yr*12;
-                  const rem = Math.max(0, debtBalance - total*monthsIn);
-                  const cleared = rem <= 0;
-                  let clearMonth = null;
-                  if (cleared) { for (let m=(yr-1)*12+1;m<=yr*12;m++) { if (debtBalance-total*m<=0){clearMonth=m;break;} } }
-                  const pct = Math.min(100,(total*monthsIn/debtBalance)*100);
-                  const prevPct = Math.min(100,(total*(monthsIn-12)/debtBalance)*100);
-                  return (
-                    <div key={yr}>
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:"0.25rem" }}>
-                        <span style={{ fontSize:"0.72rem", color:cleared?"#6bdd9a":"#9090b0" }}>Year {yr}{cleared&&clearMonth?` — clears month ${clearMonth}`:""}</span>
-                        <span style={{ fontSize:"0.8rem", color:cleared?"#6bdd9a":"#ff9966" }}>{cleared?"✓ CLEARED":formatGBP(rem)}</span>
+                  )}
+
+                  {/* Year bars — only as many as needed */}
+                  {yearsNeeded > 1 && (
+                    <>
+                      <div style={{ fontSize:"0.65rem", color:"#3a3a5a", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:"0.7rem" }}>Year-by-year breakdown</div>
+                      <div style={{ display:"flex", flexDirection:"column", gap:"0.55rem" }}>
+                        {Array.from({length: yearsNeeded}, (_,i) => i+1).map(yr => {
+                          const monthsIn = yr*12;
+                          const rem = Math.max(0, debtBalance - total*monthsIn);
+                          const cleared = rem <= 0;
+                          let clearMonth = null;
+                          if (cleared) { for (let m=(yr-1)*12+1;m<=yr*12;m++) { if (debtBalance-total*m<=0){clearMonth=m;break;} } }
+                          const pct = Math.min(100,(total*monthsIn/debtBalance)*100);
+                          const prevPct = Math.min(100,(total*(monthsIn-12)/debtBalance)*100);
+                          return (
+                            <div key={yr}>
+                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:"0.25rem" }}>
+                                <span style={{ fontSize:"0.72rem", color:cleared?"#6bdd9a":"#9090b0" }}>Year {yr}{cleared&&clearMonth?` — clears month ${clearMonth}`:""}</span>
+                                <span style={{ fontSize:"0.8rem", color:cleared?"#6bdd9a":"#ff9966" }}>{cleared?"✓ CLEARED":formatGBP(rem)}</span>
+                              </div>
+                              <div style={{ height:6, background:"#1a1a2e", borderRadius:3, overflow:"hidden", position:"relative" }}>
+                                <div style={{ position:"absolute", left:0, top:0, height:"100%", width:`${prevPct}%`, background:"#2a2a4a" }} />
+                                <div style={{ position:"absolute", left:`${prevPct}%`, top:0, height:"100%", width:`${Math.min(pct-prevPct,100-prevPct)}%`, background:cleared?"linear-gradient(90deg,#3a8a5a,#6bdd9a)":`linear-gradient(90deg,hsl(${200+yr*20},60%,50%),hsl(${220+yr*20},70%,65%))`, borderRadius:"0 3px 3px 0" }} />
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                      <div style={{ height:6, background:"#1a1a2e", borderRadius:3, overflow:"hidden", position:"relative" }}>
-                        <div style={{ position:"absolute", left:0, top:0, height:"100%", width:`${prevPct}%`, background:"#2a2a4a" }} />
-                        <div style={{ position:"absolute", left:`${prevPct}%`, top:0, height:"100%", width:`${Math.min(pct-prevPct,100-prevPct)}%`, background:cleared?"linear-gradient(90deg,#3a8a5a,#6bdd9a)":`linear-gradient(90deg,hsl(${200+yr*20},60%,50%),hsl(${220+yr*20},70%,65%))`, borderRadius:"0 3px 3px 0" }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              {(() => {
-                if (total<=0) return null;
-                const mtc = Math.ceil(debtBalance/total);
-                const yrs = Math.floor(mtc/12);
-                const mos = mtc%12;
-                const label = yrs>0?`${yrs} yr${yrs>1?"s":""}${mos>0?` ${mos} mo`:""}`:`${mos} month${mos>1?"s":""}`;
-                return (
-                  <div style={{ marginTop:"1rem", background:mtc<=60?"linear-gradient(135deg,#1a0a2e,#0a1a3a)":"#12121e", border:`1px solid ${mtc<=60?"#4a3a7a":"#1e1e3a"}`, borderRadius:8, padding:"0.7rem 1rem", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    </>
+                  )}
+
+                  {/* Time to clear */}
+                  <div style={{ marginTop:"1rem", background:"linear-gradient(135deg,#1a0a2e,#0a1a3a)", border:"1px solid #4a3a7a", borderRadius:8, padding:"0.7rem 1rem", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                     <span style={{ fontSize:"0.7rem", color:"#7a70b0" }}>Time to clear at this rate</span>
-                    <span style={{ fontSize:"1.1rem", color:mtc<=60?"#c4a8ff":"#ff6b6b" }}>{label}</span>
+                    <span style={{ fontSize:"1.1rem", color:"#c4a8ff" }}>{timeLabel}</span>
                   </div>
-                );
-              })()}
-            </div>
+
+                  {/* Interest disclaimer */}
+                  <div style={{ marginTop:"0.7rem", display:"flex", gap:"0.5rem", alignItems:"flex-start", background:"#0a0a14", border:"1px solid #1e1e2a", borderRadius:7, padding:"0.6rem 0.8rem" }}>
+                    <span style={{ fontSize:"0.8rem", flexShrink:0 }}>⚠️</span>
+                    <p style={{ fontSize:"0.68rem", color:"#4a4a6a", lineHeight:1.5, margin:0 }}>This projection doesn't include interest. Your actual payoff time may be longer depending on your interest rate. Check with your lender for an interest-inclusive estimate.</p>
+                  </div>
+                </div>
+              );
+            })()}
 
             <p style={{ textAlign:"center", fontSize:"0.65rem", color:"#2a2a4a", marginTop:"2rem" }}>Tap any day to mark as paid · Progress saves automatically · Countdown to Freedom</p>
           </div>
