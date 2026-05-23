@@ -17,10 +17,10 @@
     select option { background: #1a1a2e; color: #e8e0d0; }
     #install-banner { display:none; position:fixed; bottom:0; left:0; right:0; background:#1a0a2e; border-top:1px solid #4a3a7a; padding:0.9rem 1.2rem; z-index:999; align-items:center; justify-content:space-between; gap:1rem; }
     #install-banner.show { display:flex; }
-    #install-banner p { font-family:Georgia,serif; font-size:0.8rem; color:#c4b5fd; flex:1; }
-    #install-banner button { font-family:Georgia,serif; font-size:0.78rem; padding:0.4rem 1rem; border-radius:20px; cursor:pointer; border:none; }
+    #install-banner p { font-family:Georgia,serif; font-size:0.85rem; color:#c4b5fd; flex:1; }
+    #install-banner button { font-family:Georgia,serif; font-size:0.82rem; padding:0.4rem 1rem; border-radius:20px; cursor:pointer; border:none; }
     #install-btn { background:#7c3aed; color:#fff; }
-    #dismiss-btn { background:transparent; color:#5a5080; border:1px solid #2a2a4a !important; }
+    #dismiss-btn { background:transparent; color:#7a7090; border:1px solid #2a2a4a !important; }
   </style>
 </head>
 <body>
@@ -33,7 +33,6 @@
   </div>
 
   <script>
-    // PWA install prompt
     let deferredPrompt;
     const banner = document.getElementById('install-banner');
     window.addEventListener('beforeinstallprompt', e => {
@@ -49,8 +48,6 @@
       banner.classList.remove('show');
       localStorage.setItem('ctf-install-dismissed', '1');
     }
-
-    // Service worker registration
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js').catch(() => {});
@@ -67,12 +64,26 @@
 
     const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
+    // Currency options
+    const CURRENCIES = [
+      { symbol: "£", label: "GBP £" },
+      { symbol: "$", label: "USD $" },
+      { symbol: "€", label: "EUR €" },
+      { symbol: "zł", label: "PLN zł" },
+      { symbol: "kr", label: "SEK kr" },
+      { symbol: "₺", label: "TRY ₺" },
+      { symbol: "₹", label: "INR ₹" },
+      { symbol: "¥", label: "JPY ¥" },
+      { symbol: "Fr", label: "CHF Fr" },
+      { symbol: "₴", label: "UAH ₴" },
+    ];
+
     function getDaysInMonth(month, year) { return new Date(year, month + 1, 0).getDate(); }
     function getSchedule(month, year, scale=1) {
       const days = getDaysInMonth(month, year);
       return Array.from({ length: days }, (_, i) => ({ day: i+1, amount: parseFloat(((days-i)*scale).toFixed(2)) }));
     }
-    function formatGBP(n) { return `£${n.toFixed(2)}`; }
+    function formatCurrency(n, symbol) { return `${symbol}${n.toFixed(2)}`; }
     function storageKey(month, year) { return `ctf-paid-${year}-${month}`; }
 
     function App() {
@@ -83,10 +94,10 @@
       const [paid, setPaid] = useState({});
       const [debtName, setDebtName] = useState(() => localStorage.getItem('ctf-debt-name')||'Credit Card');
       const [debtBalance, setDebtBalance] = useState(() => parseFloat(localStorage.getItem('ctf-debt-balance')||'1200'));
+      const [currency, setCurrency] = useState(() => localStorage.getItem('ctf-currency')||'£');
       const [editing, setEditing] = useState(false);
       const [saved, setSaved] = useState(false);
 
-      // Load paid days when month/year changes
       useEffect(() => {
         try {
           const stored = localStorage.getItem(storageKey(month, year));
@@ -94,19 +105,14 @@
         } catch(e) { setPaid({}); }
       }, [month, year]);
 
-      // Save paid days whenever they change
       useEffect(() => {
-        try {
-          localStorage.setItem(storageKey(month, year), JSON.stringify(paid));
-        } catch(e) {}
+        try { localStorage.setItem(storageKey(month, year), JSON.stringify(paid)); } catch(e) {}
       }, [paid, month, year]);
 
-      // Save scale
       useEffect(() => { localStorage.setItem('ctf-scale', scale); }, [scale]);
-
-      // Save debt info
       useEffect(() => { localStorage.setItem('ctf-debt-name', debtName); }, [debtName]);
       useEffect(() => { localStorage.setItem('ctf-debt-balance', debtBalance); }, [debtBalance]);
+      useEffect(() => { localStorage.setItem('ctf-currency', currency); }, [currency]);
 
       const schedule = getSchedule(month, year, scale);
       const total = schedule.reduce((s,d) => s+d.amount, 0);
@@ -140,7 +146,7 @@
         <div style={{ minHeight:"100vh", background:"#0a0a0f", fontFamily:"Georgia,'Times New Roman',serif", color:"#e8e0d0", paddingBottom:"80px" }}>
 
           {/* Saved indicator */}
-          <div style={{ position:"fixed", top:12, right:12, zIndex:100, background:"#1a3a2a", border:"1px solid #2a6a4a", borderRadius:20, padding:"0.3rem 0.8rem", fontSize:"0.7rem", color:"#6bdd9a", transition:"opacity 0.3s", opacity:saved?1:0, pointerEvents:"none" }}>
+          <div style={{ position:"fixed", top:12, right:12, zIndex:100, background:"#1a3a2a", border:"1px solid #2a6a4a", borderRadius:20, padding:"0.35rem 0.9rem", fontSize:"0.8rem", color:"#6bdd9a", transition:"opacity 0.3s", opacity:saved?1:0, pointerEvents:"none" }}>
             ✓ Saved
           </div>
 
@@ -150,24 +156,27 @@
             <div style={{ position:"relative", maxWidth:680, margin:"0 auto" }}>
               <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:"1rem" }}>
                 <div>
-                  <div style={{ fontSize:"0.7rem", letterSpacing:"0.25em", color:"#7a70b0", textTransform:"uppercase", marginBottom:"0.3rem" }}>Countdown to Freedom</div>
+                  <div style={{ fontSize:"0.78rem", letterSpacing:"0.25em", color:"#9a90c8", textTransform:"uppercase", marginBottom:"0.3rem" }}>Countdown to Freedom</div>
                   <h1 style={{ margin:0, fontSize:"clamp(1.6rem,4vw,2.2rem)", fontWeight:"normal", color:"#f0e8ff", lineHeight:1.1 }}>Debt Tracker</h1>
                 </div>
                 <div style={{ textAlign:"right" }}>
                   {editing ? (
                     <div style={{ display:"flex", flexDirection:"column", gap:"0.4rem", alignItems:"flex-end" }}>
-                      <input value={debtName} onChange={e => setDebtName(e.target.value)} style={{ background:"#1a1a2e", border:"1px solid #4a4a8a", color:"#e8e0d0", padding:"0.3rem 0.5rem", fontSize:"0.9rem", borderRadius:4, width:160, fontFamily:"inherit" }} />
-                      <div style={{ display:"flex", gap:"0.3rem", alignItems:"center" }}>
-                        <span style={{ color:"#7a70b0", fontSize:"0.8rem" }}>£</span>
-                        <input type="number" value={debtBalance} onChange={e => setDebtBalance(parseFloat(e.target.value)||0)} style={{ background:"#1a1a2e", border:"1px solid #4a4a8a", color:"#e8e0d0", padding:"0.3rem 0.5rem", fontSize:"0.9rem", borderRadius:4, width:110, fontFamily:"inherit" }} />
+                      <input value={debtName} onChange={e => setDebtName(e.target.value)} style={{ background:"#1a1a2e", border:"1px solid #4a4a8a", color:"#e8e0d0", padding:"0.3rem 0.5rem", fontSize:"0.95rem", borderRadius:4, width:160, fontFamily:"inherit" }} />
+                      <div style={{ display:"flex", gap:"0.4rem", alignItems:"center" }}>
+                        {/* Currency dropdown */}
+                        <select value={currency} onChange={e => setCurrency(e.target.value)} style={{ background:"#1a1a2e", border:"1px solid #4a4a8a", color:"#e8e0d0", padding:"0.3rem 0.5rem", fontSize:"0.85rem", borderRadius:4, fontFamily:"inherit", cursor:"pointer" }}>
+                          {CURRENCIES.map(c => <option key={c.symbol} value={c.symbol}>{c.label}</option>)}
+                        </select>
+                        <input type="number" value={debtBalance} onChange={e => setDebtBalance(parseFloat(e.target.value)||0)} style={{ background:"#1a1a2e", border:"1px solid #4a4a8a", color:"#e8e0d0", padding:"0.3rem 0.5rem", fontSize:"0.95rem", borderRadius:4, width:110, fontFamily:"inherit" }} />
                       </div>
-                      <button onClick={() => setEditing(false)} style={{ background:"#4a3a7a", border:"none", color:"#e8e0d0", padding:"0.3rem 0.8rem", borderRadius:4, cursor:"pointer", fontSize:"0.8rem", fontFamily:"inherit" }}>Save</button>
+                      <button onClick={() => setEditing(false)} style={{ background:"#4a3a7a", border:"none", color:"#e8e0d0", padding:"0.35rem 0.9rem", borderRadius:4, cursor:"pointer", fontSize:"0.85rem", fontFamily:"inherit" }}>Save</button>
                     </div>
                   ) : (
                     <div onClick={() => setEditing(true)} style={{ cursor:"pointer" }}>
-                      <div style={{ fontSize:"0.75rem", color:"#7a70b0", marginBottom:"0.2rem" }}>{debtName} balance</div>
-                      <div style={{ fontSize:"1.5rem", color:"#ff6b6b", fontWeight:"normal" }}>{formatGBP(debtBalance)}</div>
-                      <div style={{ fontSize:"0.65rem", color:"#4a4a6a", marginTop:"0.2rem" }}>tap to edit</div>
+                      <div style={{ fontSize:"0.82rem", color:"#9a90c8", marginBottom:"0.2rem" }}>{debtName} balance</div>
+                      <div style={{ fontSize:"1.5rem", color:"#ff6b6b", fontWeight:"normal" }}>{formatCurrency(debtBalance, currency)}</div>
+                      <div style={{ fontSize:"0.72rem", color:"#6a6a8a", marginTop:"0.2rem" }}>tap to edit</div>
                     </div>
                   )}
                 </div>
@@ -180,16 +189,16 @@
             {/* Controls */}
             <div style={{ background:"#0f0f1a", border:"1px solid #1e1e3a", borderRadius:10, padding:"1rem 1.2rem", marginBottom:"1.5rem", display:"flex", flexWrap:"wrap", gap:"1rem", alignItems:"center", justifyContent:"space-between" }}>
               <div style={{ display:"flex", gap:"0.5rem", alignItems:"center" }}>
-                <select value={month} onChange={e => setMonth(Number(e.target.value))} style={{ background:"#1a1a2e", border:"1px solid #2a2a4a", color:"#e8e0d0", padding:"0.4rem 0.6rem", borderRadius:6, fontFamily:"inherit", fontSize:"0.9rem" }}>
+                <select value={month} onChange={e => setMonth(Number(e.target.value))} style={{ background:"#1a1a2e", border:"1px solid #2a2a4a", color:"#e8e0d0", padding:"0.4rem 0.6rem", borderRadius:6, fontFamily:"inherit", fontSize:"0.95rem" }}>
                   {MONTHS.map((m,i) => <option key={m} value={i}>{m}</option>)}
                 </select>
-                <select value={year} onChange={e => setYear(Number(e.target.value))} style={{ background:"#1a1a2e", border:"1px solid #2a2a4a", color:"#e8e0d0", padding:"0.4rem 0.6rem", borderRadius:6, fontFamily:"inherit", fontSize:"0.9rem" }}>
+                <select value={year} onChange={e => setYear(Number(e.target.value))} style={{ background:"#1a1a2e", border:"1px solid #2a2a4a", color:"#e8e0d0", padding:"0.4rem 0.6rem", borderRadius:6, fontFamily:"inherit", fontSize:"0.95rem" }}>
                   {years.map(y => <option key={y} value={y}>{y}</option>)}
                 </select>
               </div>
               <div style={{ display:"flex", gap:"0.4rem", flexWrap:"wrap" }}>
                 {scaleOptions.map(o => (
-                  <button key={o.value} onClick={() => setScale(o.value)} style={{ background:scale===o.value?"#4a3a7a":"#1a1a2e", border:`1px solid ${scale===o.value?"#7a6ab0":"#2a2a4a"}`, color:scale===o.value?"#e8e0d0":"#7a70b0", padding:"0.3rem 0.7rem", borderRadius:20, cursor:"pointer", fontSize:"0.75rem", fontFamily:"inherit" }}>
+                  <button key={o.value} onClick={() => setScale(o.value)} style={{ background:scale===o.value?"#4a3a7a":"#1a1a2e", border:`1px solid ${scale===o.value?"#7a6ab0":"#2a2a4a"}`, color:scale===o.value?"#e8e0d0":"#9090b8", padding:"0.35rem 0.8rem", borderRadius:20, cursor:"pointer", fontSize:"0.8rem", fontFamily:"inherit" }}>
                     {o.label}
                   </button>
                 ))}
@@ -198,9 +207,13 @@
 
             {/* Summary cards */}
             <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"0.8rem", marginBottom:"1.5rem" }}>
-              {[{label:"Month Total",value:formatGBP(total),color:"#a090e0"},{label:"Paid So Far",value:formatGBP(paidTotal),color:"#6bdd9a"},{label:"Left This Month",value:formatGBP(remaining),color:"#ff9966"}].map(card => (
+              {[
+                {label:"Month Total", value:formatCurrency(total,currency), color:"#a090e0"},
+                {label:"Paid So Far", value:formatCurrency(paidTotal,currency), color:"#6bdd9a"},
+                {label:"Left This Month", value:formatCurrency(remaining,currency), color:"#ff9966"}
+              ].map(card => (
                 <div key={card.label} style={{ background:"#0f0f1a", border:"1px solid #1e1e3a", borderRadius:10, padding:"0.9rem 1rem", textAlign:"center" }}>
-                  <div style={{ fontSize:"0.65rem", letterSpacing:"0.1em", color:"#4a4a6a", textTransform:"uppercase", marginBottom:"0.4rem" }}>{card.label}</div>
+                  <div style={{ fontSize:"0.72rem", letterSpacing:"0.08em", color:"#7070a0", textTransform:"uppercase", marginBottom:"0.4rem" }}>{card.label}</div>
                   <div style={{ fontSize:"1.2rem", color:card.color }}>{card.value}</div>
                 </div>
               ))}
@@ -209,32 +222,32 @@
             {/* Progress bar */}
             <div style={{ marginBottom:"1.5rem" }}>
               <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"0.4rem" }}>
-                <span style={{ fontSize:"0.7rem", color:"#4a4a6a", textTransform:"uppercase", letterSpacing:"0.1em" }}>Monthly Progress</span>
-                <span style={{ fontSize:"0.8rem", color:"#6bdd9a" }}>{progress.toFixed(0)}%</span>
+                <span style={{ fontSize:"0.78rem", color:"#7070a0", textTransform:"uppercase", letterSpacing:"0.1em" }}>Monthly Progress</span>
+                <span style={{ fontSize:"0.88rem", color:"#6bdd9a" }}>{progress.toFixed(0)}%</span>
               </div>
               <div style={{ height:8, background:"#1a1a2e", borderRadius:4, overflow:"hidden" }}>
                 <div style={{ height:"100%", width:`${progress}%`, background:"linear-gradient(90deg,#4a3a7a,#6bdd9a)", borderRadius:4, transition:"width 0.4s ease" }} />
               </div>
               {isCurrentMonth && (
                 <div style={{ marginTop:"0.6rem", display:"flex", justifyContent:"flex-end" }}>
-                  <button onClick={markUpToToday} style={{ background:"transparent", border:"1px solid #2a2a4a", color:"#7a70b0", padding:"0.3rem 0.8rem", borderRadius:20, cursor:"pointer", fontSize:"0.72rem", fontFamily:"inherit" }}>✓ Mark all days up to today</button>
+                  <button onClick={markUpToToday} style={{ background:"transparent", border:"1px solid #3a3a5a", color:"#9090b8", padding:"0.35rem 0.9rem", borderRadius:20, cursor:"pointer", fontSize:"0.78rem", fontFamily:"inherit" }}>✓ Mark all days up to today</button>
                 </div>
               )}
             </div>
 
             {/* Calendar */}
             <div style={{ background:"#0f0f1a", border:"1px solid #1e1e3a", borderRadius:12, padding:"1.2rem" }}>
-              <div style={{ fontSize:"0.7rem", letterSpacing:"0.15em", color:"#4a4a6a", textTransform:"uppercase", marginBottom:"1rem" }}>{MONTHS[month]} {year} — Daily Schedule</div>
+              <div style={{ fontSize:"0.78rem", letterSpacing:"0.15em", color:"#7070a0", textTransform:"uppercase", marginBottom:"1rem" }}>{MONTHS[month]} {year} — Daily Schedule</div>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(76px,1fr))", gap:"0.5rem" }}>
                 {schedule.map(({ day, amount }) => {
                   const isPaid = !!paid[day];
                   const isToday = isCurrentMonth && day === today;
                   const isPast = isCurrentMonth && day < today;
                   return (
-                    <button key={day} onClick={() => toggleDay(day)} style={{ background:isPaid?"linear-gradient(135deg,#1a3a2a,#0d2a1a)":isToday?"linear-gradient(135deg,#2a1a4a,#1a0a3a)":"#12121e", border:isPaid?"1px solid #2a6a4a":isToday?"1px solid #6a4aaa":isPast?"1px solid #2a1a2a":"1px solid #1e1e3a", borderRadius:8, padding:"0.6rem 0.4rem", cursor:"pointer", textAlign:"center", transition:"all 0.15s", position:"relative", opacity:isPast&&!isPaid?0.6:1 }}>
-                      <div style={{ fontSize:"0.65rem", color:isPaid?"#4a8a6a":isToday?"#9a7ad0":"#3a3a5a", marginBottom:"0.2rem" }}>{isToday?"TODAY":`Day ${day}`}</div>
-                      <div style={{ fontSize:"0.95rem", color:isPaid?"#6bdd9a":isToday?"#c4a8ff":"#9090b0", fontWeight:isPaid||isToday?"bold":"normal" }}>{formatGBP(amount)}</div>
-                      {isPaid && <div style={{ position:"absolute", top:4, right:6, fontSize:"0.65rem", color:"#6bdd9a" }}>✓</div>}
+                    <button key={day} onClick={() => toggleDay(day)} style={{ background:isPaid?"linear-gradient(135deg,#1a3a2a,#0d2a1a)":isToday?"linear-gradient(135deg,#2a1a4a,#1a0a3a)":"#12121e", border:isPaid?"1px solid #2a6a4a":isToday?"1px solid #6a4aaa":isPast?"1px solid #2a1a2a":"1px solid #1e1e3a", borderRadius:8, padding:"0.6rem 0.4rem", cursor:"pointer", textAlign:"center", transition:"all 0.15s", position:"relative", opacity:isPast&&!isPaid?0.65:1 }}>
+                      <div style={{ fontSize:"0.7rem", color:isPaid?"#5aaa7a":isToday?"#b09ae0":"#6a6a8a", marginBottom:"0.2rem" }}>{isToday?"TODAY":`Day ${day}`}</div>
+                      <div style={{ fontSize:"1rem", color:isPaid?"#6bdd9a":isToday?"#c4a8ff":"#b0b0cc", fontWeight:isPaid||isToday?"bold":"normal" }}>{formatCurrency(amount, currency)}</div>
+                      {isPaid && <div style={{ position:"absolute", top:4, right:6, fontSize:"0.7rem", color:"#6bdd9a" }}>✓</div>}
                     </button>
                   );
                 })}
@@ -253,9 +266,8 @@
 
               return (
                 <div style={{ background:"#0f0f1a", border:"1px solid #1e1e3a", borderRadius:10, padding:"1rem 1.2rem", marginTop:"1rem" }}>
-                  <div style={{ fontSize:"0.7rem", letterSpacing:"0.15em", color:"#4a4a6a", textTransform:"uppercase", marginBottom:"1rem" }}>Debt Paydown Projection</div>
+                  <div style={{ fontSize:"0.78rem", letterSpacing:"0.15em", color:"#7070a0", textTransform:"uppercase", marginBottom:"1rem" }}>Debt Paydown Projection</div>
 
-                  {/* Milestone cards — only show relevant ones */}
                   {milestones.length > 0 && (
                     <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:"0.5rem", marginBottom:"1.2rem" }}>
                       {milestones.map(p => {
@@ -263,18 +275,17 @@
                         const cleared = val <= 0;
                         return (
                           <div key={p.label} style={{ background:cleared?"linear-gradient(135deg,#0d2a1a,#0a1a10)":"#12121e", border:`1px solid ${cleared?"#2a6a4a":"#1e1e3a"}`, borderRadius:8, padding:"0.7rem 0.8rem" }}>
-                            <div style={{ fontSize:"0.62rem", color:cleared?"#4a8a6a":"#4a4a6a", marginBottom:"0.25rem" }}>{p.label}</div>
-                            <div style={{ fontSize:"1rem", color:cleared?"#6bdd9a":"#ff9966" }}>{cleared?"✓ CLEARED!":formatGBP(val)}</div>
+                            <div style={{ fontSize:"0.72rem", color:cleared?"#5aaa7a":"#6a6a8a", marginBottom:"0.25rem" }}>{p.label}</div>
+                            <div style={{ fontSize:"1rem", color:cleared?"#6bdd9a":"#ff9966" }}>{cleared?"✓ CLEARED!":formatCurrency(val, currency)}</div>
                           </div>
                         );
                       })}
                     </div>
                   )}
 
-                  {/* Year bars — only as many as needed */}
                   {yearsNeeded > 1 && (
                     <>
-                      <div style={{ fontSize:"0.65rem", color:"#3a3a5a", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:"0.7rem" }}>Year-by-year breakdown</div>
+                      <div style={{ fontSize:"0.72rem", color:"#5a5a7a", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:"0.7rem" }}>Year-by-year breakdown</div>
                       <div style={{ display:"flex", flexDirection:"column", gap:"0.55rem" }}>
                         {Array.from({length: yearsNeeded}, (_,i) => i+1).map(yr => {
                           const monthsIn = yr*12;
@@ -287,8 +298,8 @@
                           return (
                             <div key={yr}>
                               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:"0.25rem" }}>
-                                <span style={{ fontSize:"0.72rem", color:cleared?"#6bdd9a":"#9090b0" }}>Year {yr}{cleared&&clearMonth?` — clears month ${clearMonth}`:""}</span>
-                                <span style={{ fontSize:"0.8rem", color:cleared?"#6bdd9a":"#ff9966" }}>{cleared?"✓ CLEARED":formatGBP(rem)}</span>
+                                <span style={{ fontSize:"0.78rem", color:cleared?"#6bdd9a":"#a0a0c0" }}>Year {yr}{cleared&&clearMonth?` — clears month ${clearMonth}`:""}</span>
+                                <span style={{ fontSize:"0.85rem", color:cleared?"#6bdd9a":"#ff9966" }}>{cleared?"✓ CLEARED":formatCurrency(rem, currency)}</span>
                               </div>
                               <div style={{ height:6, background:"#1a1a2e", borderRadius:3, overflow:"hidden", position:"relative" }}>
                                 <div style={{ position:"absolute", left:0, top:0, height:"100%", width:`${prevPct}%`, background:"#2a2a4a" }} />
@@ -301,22 +312,20 @@
                     </>
                   )}
 
-                  {/* Time to clear */}
                   <div style={{ marginTop:"1rem", background:"linear-gradient(135deg,#1a0a2e,#0a1a3a)", border:"1px solid #4a3a7a", borderRadius:8, padding:"0.7rem 1rem", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                    <span style={{ fontSize:"0.7rem", color:"#7a70b0" }}>Time to clear at this rate</span>
+                    <span style={{ fontSize:"0.78rem", color:"#9a90c8" }}>Time to clear at this rate</span>
                     <span style={{ fontSize:"1.1rem", color:"#c4a8ff" }}>{timeLabel}</span>
                   </div>
 
-                  {/* Interest disclaimer */}
                   <div style={{ marginTop:"0.7rem", display:"flex", gap:"0.5rem", alignItems:"flex-start", background:"#0a0a14", border:"1px solid #1e1e2a", borderRadius:7, padding:"0.6rem 0.8rem" }}>
-                    <span style={{ fontSize:"0.8rem", flexShrink:0 }}>⚠️</span>
-                    <p style={{ fontSize:"0.68rem", color:"#4a4a6a", lineHeight:1.5, margin:0 }}>This projection doesn't include interest. Your actual payoff time may be longer depending on your interest rate. Check with your lender for an interest-inclusive estimate.</p>
+                    <span style={{ fontSize:"0.85rem", flexShrink:0 }}>⚠️</span>
+                    <p style={{ fontSize:"0.75rem", color:"#6a6a8a", lineHeight:1.5, margin:0 }}>This projection doesn't include interest. Your actual payoff time may be longer depending on your interest rate. Check with your lender for an interest-inclusive estimate.</p>
                   </div>
                 </div>
               );
             })()}
 
-            <p style={{ textAlign:"center", fontSize:"0.65rem", color:"#2a2a4a", marginTop:"2rem" }}>Tap any day to mark as paid · Progress saves automatically · Countdown to Freedom</p>
+            <p style={{ textAlign:"center", fontSize:"0.72rem", color:"#3a3a5a", marginTop:"2rem" }}>Tap any day to mark as paid · Progress saves automatically · Countdown to Freedom</p>
           </div>
         </div>
       );
